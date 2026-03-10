@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ถ่ายรูปในเว็บ</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #111;
+      color: #fff;
+      font-family: sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #camera-wrap {
+      position: relative;
+      width: 320px;
+      height: 520px;
+      overflow: hidden;
+      background: #000;
+    }
+    #video, #capturedCanvas {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      background: #000;
+    }
+    #capturedCanvas { display: none; }
+    #overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+    #overlay svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .btns {
+      margin-top: 18px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 14px 24px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #btnStart   { background: #00e676; color: #000; }
+    #btnCapture { background: #00c853; color: #000; }
+    #btnUpload  { background: #2962ff; color: #fff; display: none; }
+    #btnRetake  { background: transparent; color: #00e676; border: 2px solid #00e676; display: none; }
+    #status {
+      margin-top: 14px;
+      min-height: 24px;
+      color: #bbb;
+      text-align: center;
+      font-size: 14px;
+      max-width: 320px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+<div id="camera-wrap">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="capturedCanvas"></canvas>
+
+  <div id="overlay">
+    <svg viewBox="0 0 320 520" preserveAspectRatio="none" aria-hidden="true">
+      <!-- แถบดำบน -->
+      <rect x="0" y="0" width="320" height="72" fill="rgba(0,0,0,0.85)" />
+      <!-- แถบดำล่าง -->
+      <rect x="0" y="442" width="320" height="78" fill="rgba(0,0,0,0.85)" />
+      <!-- ข้อความบน -->
+      <text x="160" y="42" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="600">
+        กรุณาวางใบหน้าในกรอบที่กำหนด
+      </text>
+      <!-- กรอบมุมสีเขียว -->
+      <rect x="55" y="78" width="32" height="4" rx="2" fill="#00e676"/>
+      <rect x="55" y="78" width="4" height="32" rx="2" fill="#00e676"/>
+      <rect x="233" y="78" width="32" height="4" rx="2" fill="#00e676"/>
+      <rect x="261" y="78" width="4" height="32" rx="2" fill="#00e676"/>
+      <rect x="55" y="438" width="32" height="4" rx="2" fill="#00e676"/>
+      <rect x="55" y="410" width="4" height="32" rx="2" fill="#00e676"/>
+      <rect x="233" y="438" width="32" height="4" rx="2" fill="#00e676"/>
+      <rect x="261" y="410" width="4" height="32" rx="2" fill="#00e676"/>
+      <!-- หัว -->
+      <ellipse cx="160" cy="195" rx="68" ry="85" fill="rgba(255,255,255,0.07)" stroke="white" stroke-width="2.5"/>
+      <!-- หู ซ้าย -->
+      <path d="M92,190 C84,192 78,200 78,212 C78,224 84,233 93,233 C91,225 90,212 92,190 Z" fill="rgba(255,255,255,0.07)" stroke="white" stroke-width="2"/>
+      <!-- หู ขวา -->
+      <path d="M228,190 C236,192 242,200 242,212 C242,224 236,233 227,233 C229,225 230,212 228,190 Z" fill="rgba(255,255,255,0.07)" stroke="white" stroke-width="2"/>
+      <!-- คอ -->
+      <path d="M141,278 C141,295 138,315 135,328 L185,328 C182,315 179,295 179,278" fill="rgba(255,255,255,0.07)" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+      <!-- ไหล่ -->
+      <path d="M55,440 C60,395 95,360 135,340 L185,340 C225,360 260,395 265,440" fill="rgba(255,255,255,0.07)" stroke="white" stroke-width="2.5" stroke-linejoin="round"/>
+    </svg>
+  </div>
+</div>
+
+<div class="btns">
+  <button id="btnStart"   type="button">เปิดกล้อง</button>
+  <button id="btnCapture" type="button" disabled>ถ่ายรูป</button>
+  <button id="btnUpload"  type="button">อัปโหลดรูป</button>
+  <button id="btnRetake"  type="button">ถ่ายใหม่</button>
+</div>
+<div id="status">กดปุ่มเพื่อเปิดกล้อง</div>
+
+<script>
+  // ============================================================
+  // ⚠️ แก้ URL นี้ให้ตรงกับ n8n webhook ของคุณ
+  // ============================================================
+  var UPLOAD_URL = "https://heftily-rhematic-kai.ngrok-free.dev/webhook/liff-upload";
+
+  var video      = document.getElementById("video");
+  var canvas     = document.getElementById("capturedCanvas");
+  var btnStart   = document.getElementById("btnStart");
+  var btnCapture = document.getElementById("btnCapture");
+  var btnUpload  = document.getElementById("btnUpload");
+  var btnRetake  = document.getElementById("btnRetake");
+  var statusEl   = document.getElementById("status");
+
+  var stream       = null;
+  var capturedBlob = null;
+
+  function startCamera() {
+    statusEl.textContent = "กำลังขอ permission กล้อง...";
+    if (stream) stopCamera();
+
+    capturedBlob = null;
+    canvas.style.display     = "none";
+    video.style.display      = "block";
+    btnUpload.style.display  = "none";
+    btnRetake.style.display  = "none";
+    btnCapture.style.display = "inline-block";
+    btnCapture.disabled      = true;
+
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    })
+    .then(function(s) {
+      stream = s;
+      video.srcObject = stream;
+      video.onloadedmetadata = function() {
+        video.play().then(function() {
+          btnCapture.disabled = false;
+          statusEl.textContent = "เปิดกล้องสำเร็จ จัดใบหน้าให้อยู่ในกรอบแล้วกดถ่าย";
+        });
+      };
+    })
+    .catch(function(err) {
+      console.error("Camera error:", err);
+      statusEl.textContent = "ไม่สามารถเปิดกล้องได้: " + (err.name || "") + " - " + (err.message || "");
+    });
+  }
+
+  function stopCamera() {
+    if (stream) {
+      stream.getTracks().forEach(function(t) { t.stop(); });
+      stream = null;
+    }
+    video.srcObject = null;
+  }
+
+  function capturePhoto() {
+    var vw = video.videoWidth;
+    var vh = video.videoHeight;
+    if (!vw || !vh) { statusEl.textContent = "ยังไม่พบภาพจากกล้อง"; return; }
+
+    canvas.width  = vw;
+    canvas.height = vh;
+    var ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, vw, vh);
+
+    canvas.toBlob(function(blob) {
+      if (!blob) { statusEl.textContent = "จับภาพไม่สำเร็จ"; return; }
+      capturedBlob = blob;
+
+      video.style.display      = "none";
+      canvas.style.display     = "block";
+      btnUpload.style.display  = "inline-block";
+      btnRetake.style.display  = "inline-block";
+      btnCapture.style.display = "none";
+      statusEl.textContent = "ถ่ายรูปแล้ว กดอัปโหลดได้เลย";
+    }, "image/jpeg", 0.9);
+  }
+
+  function retakePhoto() {
+    capturedBlob = null;
+    canvas.style.display     = "none";
+    video.style.display      = "block";
+    btnUpload.style.display  = "none";
+    btnRetake.style.display  = "none";
+    btnCapture.style.display = "inline-block";
+    btnCapture.disabled      = false;
+    statusEl.textContent     = "พร้อมถ่ายใหม่";
+    if (!stream) startCamera();
+  }
+
+  function uploadPhoto() {
+    if (!capturedBlob) { statusEl.textContent = "ยังไม่มีรูปให้ส่ง"; return; }
+    btnUpload.disabled = true;
+    statusEl.textContent = "กำลังอัปโหลด...";
+
+    var formData = new FormData();
+    formData.append("image", capturedBlob, "capture.jpg");
+
+    fetch(UPLOAD_URL, { method: "POST", body: formData })
+      .then(function(res) {
+        return res.json().then(function(d) { return { ok: res.ok, data: d }; });
+      })
+      .then(function(result) {
+        if (result.ok && result.data.ok) {
+          statusEl.textContent    = "✅ อัปโหลดสำเร็จ!";
+          btnUpload.textContent   = "✅ สำเร็จแล้ว";
+          stopCamera();
+        } else {
+          throw new Error(result.data.message || JSON.stringify(result.data));
+        }
+      })
+      .catch(function(err) {
+        console.error("Upload error:", err);
+        statusEl.textContent = "❌ อัปโหลดไม่สำเร็จ: " + (err.message || "Unknown");
+        btnUpload.disabled = false;
+      });
+  }
+
+  btnStart.addEventListener("click", startCamera);
+  btnCapture.addEventListener("click", capturePhoto);
+  btnRetake.addEventListener("click", retakePhoto);
+  btnUpload.addEventListener("click", uploadPhoto);
+  window.addEventListener("beforeunload", stopCamera);
+</script>
+</body>
+</html>
