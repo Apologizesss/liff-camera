@@ -220,7 +220,7 @@
     var formData = new FormData();
     formData.append("image", capturedBlob, "capture.jpg");
 
-    fetch(UPLOAD_URL, { method: "POST", body: formData })
+    fetch(UPLOAD_URL, { method: "POST", body: formData, mode: "cors" })
       .then(function(res) {
         return res.json().then(function(d) { return { ok: res.ok, data: d }; });
       })
