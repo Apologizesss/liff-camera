@@ -842,7 +842,7 @@
           modalStudentId.textContent = confirmedStudentId;
           document.getElementById("successModal").classList.add("active");
         } else {
-          throw new Error(r.data.message || JSON.stringify(r.data));
+          throw new Error(r.data.message || "เกิดข้อผิดพลาด กรุณาลองใหม่");
         }
       })
       .catch(function(err) {
